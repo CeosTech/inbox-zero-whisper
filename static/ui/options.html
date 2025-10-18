@@ -1,0 +1,197 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Inbox Zero Whisper — Options</title>
+  <style>
+    :root{--bg:#0f1115;--card:#171a21;--muted:#aab0bf;--text:#e7ecf3;--accent:#4f8cff;--border:#262b36}
+    body{margin:0;padding:20px;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto}
+    .card{max-width:720px;margin:auto;background:#171a21;border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+    h3{margin:0 0 12px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .col{flex:1 1 260px}
+    label{display:block;margin:10px 0 6px;color:var(--muted)}
+    select,input[type="number"],input[type="range"]{width:100%;padding:8px;border-radius:10px;border:1px solid #2b3342;background:#0e1420;color:#e7ecf3}
+    .toggle{display:flex;align-items:center;gap:8px}
+    .btn{margin-top:12px;padding:8px 10px;border-radius:10px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-weight:600}
+    .btn.secondary{background:#111826;border:1px solid var(--border);color:var(--text)}
+    .hint{color:var(--muted);font-size:12px;margin-top:6px}
+    .bar{height:1px;background:var(--border);margin:14px 0}
+    .header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+    .logo{width:20px;height:20px;border-radius:4px}
+    .right{display:flex;gap:8px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <img id="logo" class="logo" alt="IZW"/>
+      <h3 style="margin:0">Inbox Zero Whisper — Options</h3>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <label for="tone">Tone</label>
+        <select id="tone">
+          <option value="concise">Concise</option>
+          <option value="empathetic">Empathetic</option>
+          <option value="direct">Direct</option>
+        </select>
+      </div>
+      <div class="col">
+        <label for="maxPoints">Max bullets</label>
+        <input id="maxPoints" type="number" min="3" max="7" value="5"/>
+      </div>
+      <div class="col">
+        <label for="theme">Theme</label>
+        <select id="theme">
+          <option value="auto">Auto</option>
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+        <div class="hint">Affects side panel styling (future-proof).</div>
+      </div>
+      <div class="col">
+        <label for="fontScale">Panel text size</label>
+        <input id="fontScale" type="range" min="90" max="120" value="100"/>
+        <div class="hint"><span id="fontScaleVal">100%</span></div>
+      </div>
+    </div>
+
+    <div class="bar"></div>
+
+    <div class="row">
+      <div class="col">
+        <label>Floating button</label>
+        <div class="toggle">
+          <input type="checkbox" id="showFloat"/>
+          <span>Show on Gmail pages</span>
+        </div>
+        <button id="resetPos" class="btn secondary">Reset position</button>
+        <div class="hint">Drag to move on screen. “Reset” reverts to bottom-right.</div>
+      </div>
+
+      <div class="col">
+        <label>Data</label>
+        <button id="clearData" class="btn secondary">Clear summary & replies</button>
+        <div class="hint">Empties bullets, replies, and last thread context.</div>
+      </div>
+
+      <div class="col">
+        <label>Quick actions</label>
+        <button id="openPanel" class="btn secondary">Open side panel</button>
+        <div class="hint">Opens the panel in the current window.</div>
+      </div>
+
+      <div class="col">
+        <label>Status</label>
+        <div id="aiStatus" class="hint">Detecting…</div>
+      </div>
+    </div>
+
+    <div class="bar"></div>
+
+    <div class="right">
+      <button id="save" class="btn">Save</button>
+    </div>
+  </div>
+
+  <script type="module">
+  // Elements
+  const $ = (id) => document.getElementById(id);
+  const toneSel = $("tone");
+  const maxPoints = $("maxPoints");
+  const themeSel = $("theme");
+  const fontScale = $("fontScale");
+  const fontScaleVal = $("fontScaleVal");
+  const showFloat = $("showFloat");
+  const resetPos = $("resetPos");
+  const clearData = $("clearData");
+  const openPanel = $("openPanel");
+  const saveBtn = $("save");
+  const aiStatus = $("aiStatus");
+  const logo = $("logo");
+
+  // --- Logo (ensure file exists) ---
+  // Needs static/icons/icon-32.png in your repo.
+  // If missing, run: sips -Z 32 static/icons/icon-129.png --out static/icons/icon-32.png
+  if (logo) logo.src = chrome.runtime.getURL("icons/icon-32.png");
+
+  // --- Load current settings ---
+  const defaults = { tone: "concise", maxPoints: 5, theme: "auto", fontScale: 100, showFloat: true };
+  chrome.storage.local.get(Object.keys(defaults)).then((v) => {
+    (toneSel).value = v.tone ?? defaults.tone;
+    (maxPoints).value = v.maxPoints ?? defaults.maxPoints;
+    (themeSel).value = v.theme ?? defaults.theme;
+    (fontScale).value = String(v.fontScale ?? defaults.fontScale);
+    (fontScaleVal).textContent = `${v.fontScale ?? defaults.fontScale}%`;
+    (showFloat).checked = (v.showFloat ?? defaults.showFloat) === true;
+    applyPreviewTheme(themeSel.value);
+  });
+
+  // --- Live UI feedback ---
+  fontScale.addEventListener("input", () => (fontScaleVal).textContent = fontScale.value + "%");
+  themeSel.addEventListener("change", () => applyPreviewTheme(themeSel.value));
+
+  // --- Save settings ---
+  saveBtn.addEventListener("click", () => {
+    const payload = {
+      tone: (toneSel).value,
+      maxPoints: Number((maxPoints).value) || 5,
+      theme: (themeSel).value,
+      fontScale: Number((fontScale).value) || 100,
+      showFloat: (showFloat).checked
+    };
+    chrome.storage.local.set(payload, () => {
+      saveBtn.textContent = "Saved ✓";
+      setTimeout(()=> saveBtn.textContent = "Save", 1000);
+    });
+  });
+
+  // --- Reset floating button pos ---
+  resetPos.addEventListener("click", async () => {
+    await chrome.storage.local.remove("izwBtnPos");
+    alert("Position reset. Refresh Gmail to apply.");
+  });
+
+  // --- Clear data (panel state) ---
+  clearData.addEventListener("click", async () => {
+    await chrome.storage.local.set({ bullets: [], replies: [], lastThread: "", lastThreadKey: "" });
+    alert("Cleared. The panel will be empty on next open.");
+  });
+
+  // --- Open panel quick action ---
+  openPanel.addEventListener("click", async () => {
+    try {
+      await chrome.runtime.sendMessage({ type: "OPEN_PANEL" });
+    } catch {
+      alert("Could not open the side panel. Ensure the extension is loaded.");
+    }
+  });
+
+  // --- AI status detection (built-in APIs) ---
+  const hasSumm = !!(globalThis).ai?.summarizer?.create;
+  const hasWrit = !!(globalThis).ai?.writer?.create;
+  const hasProof = !!(globalThis).ai?.proofreader?.create;
+  aiStatus.textContent = (hasSumm || hasWrit || hasProof)
+    ? "Built-in AI: available (local)"
+    : "Built-in AI: not available (fallback)";
+
+  // --- Light/Dark preview on the options page itself ---
+  function applyPreviewTheme(theme) {
+    const root = document.documentElement;
+    // default (dark)
+    let vars = {
+      "--bg":"#0f1115","--card":"#171a21","--muted":"#aab0bf","--text":"#e7ecf3","--accent":"#4f8cff","--border":"#262b36"
+    };
+    if (theme === "light" || (theme === "auto" && matchMedia("(prefers-color-scheme: light)").matches)) {
+      vars = {
+        "--bg":"#f7f9fc","--card":"#ffffff","--muted":"#5b6474","--text":"#0d1117","--accent":"#2f6fed","--border":"#e3e8f0"
+      };
+    }
+    Object.entries(vars).forEach(([k,v])=> root.style.setProperty(k,v));
+  }
+</script>
+
+</body>
+</html>

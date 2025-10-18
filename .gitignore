@@ -1,0 +1,13 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+
+# logs & misc
+*.log
+.DS_Store
+
+# env (si tu en ajoutes)
+.env

@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Inbox Zero Whisper</title>
+  <style>
+    :root { --bg:#0f1115; --card:#171a21; --muted:#aab0bf; --text:#e7ecf3; --accent:#4f8cff; --border:#262b36; }
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto}
+    .wrap{padding:14px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+    h3{margin:0;font-size:16px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .header{justify-content:space-between;align-items:center;margin-bottom:8px}
+    .left{display:flex;gap:8px;align-items:center}
+    .logo{width:20px;height:20px;border-radius:4px}
+    button{appearance:none;border:1px solid var(--border);background:#111826;color:var(--text);
+      padding:8px 10px;border-radius:10px;cursor:pointer;transition:.15s;font-weight:600}
+    button:hover{transform:translateY(-1px);border-color:#334054}
+    .primary{background:var(--accent);border-color:transparent;color:#fff}
+    .badge{font-size:11px;color:#9fb2ff;background:#1a2647;border:1px solid #2a3b70;border-radius:999px;padding:3px 8px}
+    ol{margin:10px 0 0 18px;padding:0}
+    pre{white-space:pre-wrap;background:#0e1420;border:1px dashed var(--border);border-radius:10px;padding:8px}
+    .hr{height:1px;background:var(--border);margin:12px 0}
+    .grid{display:grid;gap:10px}
+    .actions h4{margin:8px 0 4px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="row header">
+        <div class="left">
+          <img id="izw-logo" class="logo" alt="IZW"/>
+          <h3>Inbox Zero Whisper</h3>
+        </div>
+        <span id="mode" class="badge">Local-first</span>
+      </div>
+
+      <div class="row" style="margin-top:4px">
+        <button id="summarize" class="primary">Summarize (5 bullets)</button>
+        <button id="suggest">Suggest 3 Replies</button>
+        <button id="reset">Reset panel</button>
+      </div>
+
+      <ol id="bullets"></ol>
+      <div class="hr"></div>
+
+      <div id="replies" class="grid"></div>
+
+      <div class="hr"></div>
+
+      <div class="actions">
+        <div class="row">
+          <button id="extractActions">Extract actions</button>
+          <button id="insertPlan">Insert plan</button>
+        </div>
+        <div id="actionsList"></div>
+      </div>
+
+      <p class="hr" style="margin:12px 0 8px"></p>
+      <p style="color:#aab0bf;font-size:12px;margin:0">Tip: “Insert” pastes into Gmail; “Correct” proofreads the reply.</p>
+    </div>
+  </div>
+  <script type="module" src="./panel.js"></script>
+</body>
+</html>
