@@ -4,21 +4,46 @@ import { extractThreadText, openReplyIfNeeded, insertIntoCompose } from "../lib/
 const BTN_ID = "izw-btn";
 let lastThreadKey = threadKeyFromUrl();
 
-// ---- helpers ---------------------------------------------------------------
-function threadKeyFromUrl() {
-  // Gmail updates the hash when you open a conversation
+// ────────────────────────── utils ──────────────────────────
+function threadKeyFromUrl(): string {
+  // Gmail changes hash between conversations; Outlook often changes pathname
   return location.hash || location.pathname || "";
 }
 
-function sendRuntime<T = any>(payload: any): Promise<T> {
+function clamp(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function getViewportRect() {
+  return { w: window.innerWidth, h: window.innerHeight };
+}
+
+function isElementVisible(el: HTMLElement) {
+  return el.offsetParent !== null;
+}
+
+/** Robust sendMessage with retries for "context invalidated" etc. */
+function sendRuntime<T = any>(payload: any, tries = 3, delayMs = 200): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    try {
-      chrome.runtime.sendMessage(payload, (res) => {
-        const err = chrome.runtime.lastError;
-        if (err) return reject(err);
-        resolve(res as T);
-      });
-    } catch (e) { reject(e); }
+    const attempt = (left: number) => {
+      try {
+        chrome.runtime.sendMessage(payload, (res) => {
+          const err = chrome.runtime.lastError;
+          if (err) {
+            const msg = String(err.message || err);
+            if (left > 1 && /context invalidated|receiving end does not exist/i.test(msg)) {
+              return setTimeout(() => attempt(left - 1), delayMs);
+            }
+            return reject(err);
+          }
+          resolve(res as T);
+        });
+      } catch (e) {
+        if (left > 1) return setTimeout(() => attempt(left - 1), delayMs);
+        reject(e);
+      }
+    };
+    attempt(tries);
   });
 }
 
@@ -30,7 +55,7 @@ async function setPos(pos: { x: number; y: number }) {
   await chrome.storage.local.set({ izwBtnPos: pos });
 }
 
-// ---- draggable/closable floating box --------------------------------------
+// ───────────────────── draggable / button ───────────────────
 function makeDraggable(box: HTMLDivElement) {
   let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
 
@@ -56,7 +81,7 @@ function makeDraggable(box: HTMLDivElement) {
     const x = origX + dx;
     const y = origY + dy;
     box.style.left = `${x}px`;
-    box.style.top = `${y}px`;
+    box.style.top  = `${y}px`;
     box.style.right = "auto";
     box.style.bottom = "auto";
   };
@@ -69,22 +94,45 @@ function makeDraggable(box: HTMLDivElement) {
     document.removeEventListener("mouseup", onUp);
     document.removeEventListener("touchmove", onMove);
     document.removeEventListener("touchend", onUp);
+
+    // clamp to viewport before saving
     const rect = box.getBoundingClientRect();
-    await setPos({ x: rect.left, y: rect.top });
+    const { w, h } = getViewportRect();
+    const clamped = {
+      x: clamp(rect.left, 8, Math.max(8, w - rect.width - 8)),
+      y: clamp(rect.top,  8, Math.max(8, h - rect.height - 8)),
+    };
+    box.style.left = `${clamped.x}px`;
+    box.style.top  = `${clamped.y}px`;
+    await setPos(clamped);
   };
 
   box.addEventListener("mousedown", onDown);
   box.addEventListener("touchstart", onDown, { passive: true });
+
+  // keep inside viewport on resize
+  window.addEventListener("resize", async () => {
+    if (!isElementVisible(box)) return;
+    const rect = box.getBoundingClientRect();
+    const { w, h } = getViewportRect();
+    const x = clamp(rect.left, 8, Math.max(8, w - rect.width - 8));
+    const y = clamp(rect.top,  8, Math.max(8, h - rect.height - 8));
+    box.style.left = `${x}px`;
+    box.style.top  = `${y}px`;
+    await setPos({ x, y });
+  });
 }
 
 async function ensureButton() {
-  // respect user setting "showFloat" (default true)
+  const root = document;
+  if (!root?.body) return;
+
+  // respect Options
   const { showFloat, izwBtnHidden } = await chrome.storage.local.get(["showFloat", "izwBtnHidden"]);
   if (showFloat === false || izwBtnHidden) {
     document.getElementById(BTN_ID)?.remove();
     return;
   }
-
   if (document.getElementById(BTN_ID)) return;
 
   const box = document.createElement("div");
@@ -104,14 +152,15 @@ async function ensureButton() {
     alignItems: "center",
     padding: "8px 10px",
     font: "13px system-ui, -apple-system, Segoe UI, Roboto",
-    cursor: "grab"
+    cursor: "grab",
+    userSelect: "none"
   } as CSSStyleDeclaration);
 
-  // restore position if any
+  // restore pos
   const pos = await getPos();
   if (pos) {
     box.style.left = `${pos.x}px`;
-    box.style.top = `${pos.y}px`;
+    box.style.top  = `${pos.y}px`;
     box.style.right = "auto";
     box.style.bottom = "auto";
   }
@@ -153,21 +202,42 @@ async function ensureButton() {
   box.addEventListener("click", async () => {
     try {
       await sendRuntime({ type: "CLEAR_PANEL" });
+
       const text = extractThreadText();
+      if (!text?.trim()) {
+        alert("Open an email thread first, then click Summarize.");
+        return;
+      }
+
       await sendRuntime({ type: "THREAD_TEXT", text, threadKey: threadKeyFromUrl() });
       await sendRuntime({ type: "OPEN_PANEL" });
-    } catch {
-      alert("If you reloaded the extension, refresh Gmail and try again.");
+    } catch (e: any) {
+      const msg = String(e?.message || e || "");
+      if (/context invalidated|receiving end does not exist/i.test(msg)) {
+        alert("The extension was reloaded. Please refresh the Gmail tab and try again.");
+      } else {
+        console.warn("IZW click error:", e);
+        alert("Unexpected error. Refresh Gmail and try again.");
+      }
     }
   });
 }
 
-// initial injection + DOM watch
-new MutationObserver(() => { void ensureButton(); })
-  .observe(document.documentElement, { childList: true, subtree: true });
+// ─────────── live reaction to Options (show/hide) ──────────
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if ("showFloat" in changes || "izwBtnHidden" in changes) {
+    // Re-evaluate the floating button presence
+    void ensureButton();
+  }
+});
+
+// Initial injection + DOM watch (for SPA changes)
+const mo = new MutationObserver(() => { void ensureButton(); });
+mo.observe(document.documentElement, { childList: true, subtree: true });
 void ensureButton();
 
-// ---- detect thread change and clear panel state ---------------------------
+// ─────────── clear panel when switching threads ────────────
 setInterval(async () => {
   const k = threadKeyFromUrl();
   if (k && k !== lastThreadKey) {
@@ -176,7 +246,7 @@ setInterval(async () => {
   }
 }, 1000);
 
-// ---- receive insert requests from panel -----------------------------------
+// ───────── receive insert requests from panel ──────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     if (msg?.type === "INSERT_REPLY" && typeof msg.text === "string") {
