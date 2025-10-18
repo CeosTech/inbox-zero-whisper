@@ -49,7 +49,7 @@
           <option value="dark">Dark</option>
           <option value="light">Light</option>
         </select>
-        <div class="hint">Affects side panel styling (future-proof).</div>
+        <div class="hint">Affects side panel styling.</div>
       </div>
       <div class="col">
         <label for="fontScale">Panel text size</label>
@@ -96,102 +96,7 @@
     </div>
   </div>
 
-  <script type="module">
-  // Elements
-  const $ = (id) => document.getElementById(id);
-  const toneSel = $("tone");
-  const maxPoints = $("maxPoints");
-  const themeSel = $("theme");
-  const fontScale = $("fontScale");
-  const fontScaleVal = $("fontScaleVal");
-  const showFloat = $("showFloat");
-  const resetPos = $("resetPos");
-  const clearData = $("clearData");
-  const openPanel = $("openPanel");
-  const saveBtn = $("save");
-  const aiStatus = $("aiStatus");
-  const logo = $("logo");
-
-  // --- Logo (ensure file exists) ---
-  // Needs static/icons/icon-32.png in your repo.
-  // If missing, run: sips -Z 32 static/icons/icon-129.png --out static/icons/icon-32.png
-  if (logo) logo.src = chrome.runtime.getURL("icons/icon-32.png");
-
-  // --- Load current settings ---
-  const defaults = { tone: "concise", maxPoints: 5, theme: "auto", fontScale: 100, showFloat: true };
-  chrome.storage.local.get(Object.keys(defaults)).then((v) => {
-    (toneSel).value = v.tone ?? defaults.tone;
-    (maxPoints).value = v.maxPoints ?? defaults.maxPoints;
-    (themeSel).value = v.theme ?? defaults.theme;
-    (fontScale).value = String(v.fontScale ?? defaults.fontScale);
-    (fontScaleVal).textContent = `${v.fontScale ?? defaults.fontScale}%`;
-    (showFloat).checked = (v.showFloat ?? defaults.showFloat) === true;
-    applyPreviewTheme(themeSel.value);
-  });
-
-  // --- Live UI feedback ---
-  fontScale.addEventListener("input", () => (fontScaleVal).textContent = fontScale.value + "%");
-  themeSel.addEventListener("change", () => applyPreviewTheme(themeSel.value));
-
-  // --- Save settings ---
-  saveBtn.addEventListener("click", () => {
-    const payload = {
-      tone: (toneSel).value,
-      maxPoints: Number((maxPoints).value) || 5,
-      theme: (themeSel).value,
-      fontScale: Number((fontScale).value) || 100,
-      showFloat: (showFloat).checked
-    };
-    chrome.storage.local.set(payload, () => {
-      saveBtn.textContent = "Saved ✓";
-      setTimeout(()=> saveBtn.textContent = "Save", 1000);
-    });
-  });
-
-  // --- Reset floating button pos ---
-  resetPos.addEventListener("click", async () => {
-    await chrome.storage.local.remove("izwBtnPos");
-    alert("Position reset. Refresh Gmail to apply.");
-  });
-
-  // --- Clear data (panel state) ---
-  clearData.addEventListener("click", async () => {
-    await chrome.storage.local.set({ bullets: [], replies: [], lastThread: "", lastThreadKey: "" });
-    alert("Cleared. The panel will be empty on next open.");
-  });
-
-  // --- Open panel quick action ---
-  openPanel.addEventListener("click", async () => {
-    try {
-      await chrome.runtime.sendMessage({ type: "OPEN_PANEL" });
-    } catch {
-      alert("Could not open the side panel. Ensure the extension is loaded.");
-    }
-  });
-
-  // --- AI status detection (built-in APIs) ---
-  const hasSumm = !!(globalThis).ai?.summarizer?.create;
-  const hasWrit = !!(globalThis).ai?.writer?.create;
-  const hasProof = !!(globalThis).ai?.proofreader?.create;
-  aiStatus.textContent = (hasSumm || hasWrit || hasProof)
-    ? "Built-in AI: available (local)"
-    : "Built-in AI: not available (fallback)";
-
-  // --- Light/Dark preview on the options page itself ---
-  function applyPreviewTheme(theme) {
-    const root = document.documentElement;
-    // default (dark)
-    let vars = {
-      "--bg":"#0f1115","--card":"#171a21","--muted":"#aab0bf","--text":"#e7ecf3","--accent":"#4f8cff","--border":"#262b36"
-    };
-    if (theme === "light" || (theme === "auto" && matchMedia("(prefers-color-scheme: light)").matches)) {
-      vars = {
-        "--bg":"#f7f9fc","--card":"#ffffff","--muted":"#5b6474","--text":"#0d1117","--accent":"#2f6fed","--border":"#e3e8f0"
-      };
-    }
-    Object.entries(vars).forEach(([k,v])=> root.style.setProperty(k,v));
-  }
-</script>
-
+  <!-- ✅ External only (no inline JS) -->
+  <script type="module" src="./options.js"></script>
 </body>
 </html>
