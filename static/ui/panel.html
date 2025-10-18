@@ -19,11 +19,13 @@
     button:hover{transform:translateY(-1px);border-color:#334054}
     .primary{background:var(--accent);border-color:transparent;color:#fff}
     .badge{font-size:11px;color:#9fb2ff;background:#1a2647;border:1px solid #2a3b70;border-radius:999px;padding:3px 8px}
+    select,input[type="file"],input[type="text"]{background:#0e1420;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:8px}
     ol{margin:10px 0 0 18px;padding:0}
     pre{white-space:pre-wrap;background:#0e1420;border:1px dashed var(--border);border-radius:10px;padding:8px}
     .hr{height:1px;background:var(--border);margin:12px 0}
     .grid{display:grid;gap:10px}
     .actions h4{margin:8px 0 4px}
+    .hint{color:var(--muted);font-size:12px}
   </style>
 </head>
 <body>
@@ -37,19 +39,23 @@
         <span id="mode" class="badge">Local-first</span>
       </div>
 
+      <!-- Core actions -->
       <div class="row" style="margin-top:4px">
         <button id="summarize" class="primary">Summarize (5 bullets)</button>
         <button id="suggest">Suggest 3 Replies</button>
         <button id="reset">Reset panel</button>
       </div>
 
+      <!-- Summary -->
       <ol id="bullets"></ol>
       <div class="hr"></div>
 
+      <!-- Replies -->
       <div id="replies" class="grid"></div>
 
       <div class="hr"></div>
 
+      <!-- Actions from summary -->
       <div class="actions">
         <div class="row">
           <button id="extractActions">Extract actions</button>
@@ -59,10 +65,49 @@
         <div id="actionsList"></div>
       </div>
 
+      <div class="hr"></div>
+
+      <!-- Translate summary -->
+      <div class="row">
+        <select id="lang" title="Target language">
+          <option value="en">English</option><option value="fr">Français</option>
+          <option value="es">Español</option><option value="de">Deutsch</option>
+          <option value="it">Italiano</option><option value="pt">Português</option>
+          <option value="nl">Nederlands</option><option value="pl">Polski</option>
+          <option value="ar">العربية</option><option value="hi">हिन्दी</option>
+          <option value="zh">中文</option><option value="ja">日本語</option><option value="ko">한국어</option>
+        </select>
+        <button id="translate">Translate summary</button>
+      </div>
+      <ol id="bulletsTrans"></ol>
+
+      <div class="hr"></div>
+
+      <!-- Voice to draft -->
+      <div class="row">
+        <button id="voiceDraft">🎙️ Voice draft</button>
+        <span id="voiceStatus" class="hint">Ready</span>
+      </div>
+
+      <div class="hr"></div>
+
+      <!-- Attachment Q&A -->
+      <div class="grid">
+        <div class="row">
+          <input id="qaFile" type="file" accept=".png,.jpg,.jpeg,.pdf" />
+          <input id="qaQuestion" type="text" placeholder="Ask about the attachment…" style="flex:1; min-width:220px"/>
+          <button id="qaAsk">Ask</button>
+        </div>
+        <div id="qaAnswer" style="white-space:pre-wrap"></div>
+      </div>
+
       <p class="hr" style="margin:12px 0 8px"></p>
-      <p style="color:#aab0bf;font-size:12px;margin:0">Tip: “Insert” pastes into Gmail; “Correct” proofreads the reply.</p>
+      <p class="hint" style="margin:0">
+        Tips: “Insert” pastes into Gmail. “Correct” proofreads the reply. Translate uses on-device AI when available.
+      </p>
     </div>
   </div>
+
   <script type="module" src="./panel.js"></script>
 </body>
 </html>
