@@ -277,3 +277,118 @@ function renderActions(a: { deadlines: string[]; requests: string[]; next_steps:
     block("Attachments", a.attachments);
   chrome.storage.local.set({ actions: a });
 }
+
+// ---------- Download PDF (print-to-PDF) ----------
+$("downloadPdf")?.addEventListener("click", async () => {
+  // Pull current data
+  const { bullets = [], actions = {}, tone = "concise", lastThread = "" } =
+    await chrome.storage.local.get(["bullets", "actions", "tone", "lastThread"]);
+
+  if (!Array.isArray(bullets) || bullets.length === 0) {
+    alert("No summary yet. Click Summarize first.");
+    return;
+  }
+
+  const subject = extractSubjectFrom(lastThread) || "Email Summary";
+  const now = new Date();
+  const when = now.toLocaleString();
+
+  const html = buildPrintableHTML({
+    subject,
+    bullets,
+    actions: {
+      deadlines: actions?.deadlines || [],
+      requests: actions?.requests || [],
+      next_steps: actions?.next_steps || [],
+      attachments: actions?.attachments || []
+    },
+    tone,
+    when
+  });
+
+  openPrintable(html);
+});
+
+function extractSubjectFrom(threadText: string): string | null {
+  // Our content script prefixes messages with "Subject: ..." — reuse that if present.
+  const m = threadText?.match(/^Subject:\s*(.+)$/m);
+  return m ? m[1].trim() : null;
+}
+
+function esc(s: string) {
+  return String(s || "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function buildPrintableHTML(opts: {
+  subject: string;
+  bullets: string[];
+  actions: { deadlines: string[]; requests: string[]; next_steps: string[]; attachments: string[] };
+  tone: string; when: string;
+}) {
+  const { subject, bullets, actions, tone, when } = opts;
+  const actionBlock = (title: string, arr: string[]) =>
+    arr?.length
+      ? `<h3>${esc(title)}</h3><ul>` + arr.map(x => `<li>${esc(x)}</li>`).join("") + `</ul>`
+      : "";
+
+  // Light, print-friendly styling
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>${esc(subject)} — Summary</title>
+  <style>
+    :root{--text:#0d1117;--muted:#5b6474;--border:#e3e8f0;--accent:#2f6fed}
+    *{box-sizing:border-box}
+    body{font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto;color:var(--text);margin:24px}
+    header{margin-bottom:12px}
+    h1{font-size:20px;margin:0 0 2px}
+    .meta{color:var(--muted);font-size:12px}
+    .card{border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:12px}
+    h2{font-size:16px;margin:0 0 8px}
+    h3{font-size:14px;margin:12px 0 6px}
+    ul,ol{margin:6px 0 0 18px}
+    .badge{display:inline-block;background:#edf2ff;border:1px solid #cdd9ff;color:#2f3a8f;border-radius:999px;padding:2px 8px;font-size:11px;margin-left:6px}
+    @media print{
+      body{margin:12mm}
+      .no-print{display:none}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>${esc(subject)} <span class="badge">Inbox Zero Whisper</span></h1>
+    <div class="meta">Generated: ${esc(when)} · Tone: ${esc(tone)}</div>
+  </header>
+
+  <section class="card">
+    <h2>TL;DR (5 bullets)</h2>
+    <ol>${bullets.map(b => `<li>${esc(b)}</li>`).join("")}</ol>
+  </section>
+
+  <section class="card">
+    <h2>Action plan</h2>
+    ${actionBlock("Deadlines", actions.deadlines)}
+    ${actionBlock("Requests", actions.requests)}
+    ${actionBlock("Next steps", actions.next_steps)}
+    ${actionBlock("Attachments", actions.attachments)}
+  </section>
+
+  <div class="no-print" style="margin-top:12px">
+    <button onclick="window.print()">Print / Save as PDF</button>
+  </div>
+
+  <script>window.addEventListener('load', ()=>{ setTimeout(()=>window.print(), 150); });</script>
+</body>
+</html>`;
+}
+
+function openPrintable(html: string) {
+  const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
+  if (!w) { alert("Popup blocked. Please allow popups for this site."); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
